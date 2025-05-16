@@ -22,7 +22,10 @@ git clone https://github.com/RodriHaro/expansubi "$DEST_DIR"
 cd "$DEST_DIR"
 
 # 3. Instalar dependencias de Python
-pip3 install --user -r requirements.txt
+# Instalar pynput y pyperclip desde apt si están disponibles
+sudo apt install -y python3-pynput python3-pyperclip || true
+# Instalar el resto de dependencias con pip (ignorando error de entorno gestionado)
+pip3 install --user --break-system-packages -r requirements.txt || true
 
 # 4. Dar permisos de ejecución al lanzador
 chmod +x expansubi.sh
