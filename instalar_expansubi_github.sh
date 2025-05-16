@@ -1,10 +1,10 @@
 #!/bin/bash
-# Script de instalación y descarga automática para ExpanSubi desde GitHub
+# Script de instalación y configuración automática para ExpanSubi en Linux
 set -e
 
 # 1. Instalar dependencias del sistema
 sudo apt update
-sudo apt install -y git python3 python3-pip xclip
+sudo apt install -y git python3 python3-pip xclip python3-pynput python3-pyperclip
 
 # 2. Clonar el repositorio (en ~/expansubi o ruta personalizada)
 DEST_DIR="$HOME/expansubi"
@@ -18,13 +18,9 @@ if [ -d "$DEST_DIR" ]; then
     rm -rf "$DEST_DIR"
 fi
 git clone https://github.com/RodriHaro/expansubi "$DEST_DIR"
-
 cd "$DEST_DIR"
 
 # 3. Instalar dependencias de Python
-# Instalar pynput y pyperclip desde apt si están disponibles
-sudo apt install -y python3-pynput python3-pyperclip || true
-# Instalar el resto de dependencias con pip (ignorando error de entorno gestionado)
 pip3 install --user --break-system-packages -r requirements.txt || true
 
 # 4. Dar permisos de ejecución al lanzador
@@ -38,5 +34,8 @@ mkdir -p "$MENU_DIR"
 # Ajustar la ruta Exec en el .desktop si es necesario
 sed "s|^Exec=.*|Exec=$DEST_DIR/expansubi.sh|" "$DESKTOP_FILE" > "$MENU_DIR/expansubi.desktop"
 chmod +x "$MENU_DIR/expansubi.desktop"
+
+touch "$MENU_DIR/expansubi.desktop"
+update-desktop-database "$MENU_DIR"
 
 echo "\n¡Instalación completada! Puedes buscar 'ExpanSubi' en tu menú de aplicaciones o ejecutar ./expansubi.sh desde $DEST_DIR."
