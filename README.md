@@ -8,7 +8,7 @@ ExpanSubi is a powerful text expansion utility built with Python that enables qu
 - **Dynamic Variables**: Insert date/time values automatically using variables like `{{date}}`, `{{time}}`, `{{datetime}}`
 - **Easy Management**: Add, edit, and delete shortcuts through a simple GUI
 - **Import/Export**: Share your shortcuts with colleagues by importing and exporting to JSON files
-- **System Integration**: Option to start with Windows (Linux support coming soon)
+- **System Integration**: Option to start with Windows (Linux support available)
 - **Notification Control**: Toggle notifications for app actions
 
 ## Requirements
@@ -18,11 +18,7 @@ ExpanSubi is a powerful text expansion utility built with Python that enables qu
 
 ## Installation
 
-### Linux Support (New)
-
-This repository includes ongoing work to improve Linux compatibility. The application was originally designed for Windows but is being adapted for Linux environments.
-
-### Steps
+### Windows
 
 1. Clone this repository:
    ```
@@ -38,6 +34,29 @@ This repository includes ongoing work to improve Linux compatibility. The applic
    ```
    python app.py
    ```
+
+### Linux
+
+1. Clone this repository:
+   ```
+   git clone https://github.com/RodriHaro/expansubi.git
+   ```
+
+2. Make the run script executable:
+   ```
+   cd expansubi
+   chmod +x run_linux.sh
+   ```
+
+3. Run the application:
+   ```
+   ./run_linux.sh
+   ```
+
+   This script will:
+   - Create a Python virtual environment
+   - Install required dependencies
+   - Launch the Linux-compatible version of the app
 
 ## Usage
 
@@ -73,12 +92,28 @@ John Doe
 Sent on 16/05/2025 at 14:30
 ```
 
+## Linux-Specific Notes
+
+The Linux version has some differences from the Windows version:
+
+1. **Auto-start feature** is not implemented for Linux (the Windows registry-based approach doesn't work)
+2. **Keyboard monitoring** may require additional permissions on some Linux distributions
+3. If you encounter permission issues, try running with:
+   ```
+   sudo ./run_linux.sh
+   ```
+4. On some Linux distributions, you may need to install additional packages:
+   ```
+   sudo apt-get install python3-tk python3-dev
+   ```
+   (For Debian/Ubuntu-based distributions)
+
 ## Troubleshooting
 
 ### Linux-specific issues
 
-- The auto-start feature is designed for Windows and may not work on Linux
-- Some keyboard combinations may differ between operating systems
+- If the keyboard monitoring doesn't work, try running the app with elevated permissions
+- Make sure you have X11 development libraries installed for keyboard monitoring
 - For any issues, please open a GitHub issue with details
 
 ## Contributing
