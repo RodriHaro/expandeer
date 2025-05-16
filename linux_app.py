@@ -2,7 +2,7 @@ import json
 import threading
 import tkinter as tk
 from tkinter import simpledialog, messagebox, Listbox, END, filedialog
-import keyboard
+from pynput import keyboard  # Sustituye 'import keyboard'
 import os
 import time
 import pyperclip  # Para manejar el portapapeles
@@ -88,6 +88,8 @@ class ExpansubiApp:
         self.buffer = ""
         self.max_buffer_length = 30  # Longitud máxima del buffer
         self.clipboard_original = ""  # Para guardar el contenido original del portapapeles
+        self.listener = None  # Para pynput
+        self.listener_thread = None
         
         # Configurar estilo moderno
         self.configurar_estilo()
@@ -383,98 +385,77 @@ class ExpansubiApp:
     
     def detener_escucha(self):
         try:
-            # Dejar de escuchar todas las teclas
-            keyboard.unhook_all()
+            if self.listener:
+                self.listener.stop()
+                self.listener = None
             self.estado_var.set("Estado: Detenido")
         except Exception as e:
             print(f"Error al detener la escucha: {e}")
 
-    def procesar_tecla(self, event):
+    def procesar_tecla(self, key):
         if not self.activado.get():
             return
-            
-        # Detectar Ctrl+Z (para deshacer)
-        if event.name == 'z' and keyboard.is_pressed('ctrl'):
-            # Simplemente ignoramos Ctrl+Z para evitar interferir con la funcionalidad nativa
-            return
-            
+
         try:
-            # Si es la tecla Backspace, eliminar el último carácter del buffer
-            if event.name == 'backspace' and self.buffer:
-                self.buffer = self.buffer[:-1]
+            # Convertir la tecla a string
+            if hasattr(key, 'char') and key.char is not None:
+                char = key.char
+            elif key == keyboard.Key.space:
+                char = ' '
+            elif key == keyboard.Key.enter:
+                char = '\n'
+            elif key == keyboard.Key.backspace:
+                if self.buffer:
+                    self.buffer = self.buffer[:-1]
                 return
-            
-            # Si no es un caracter imprimible, ignorar
-            if len(event.name) != 1 and event.name not in ['space', 'enter']:
-                return
-            
-            # Agregar la tecla al buffer
-            if event.name == 'space':
-                self.buffer += ' '
-            elif event.name == 'enter':
-                self.buffer += '\n'
             else:
-                self.buffer += event.name
-            
+                return
+
+            self.buffer += char
+
             # Limitar tamaño del buffer
             if len(self.buffer) > self.max_buffer_length:
                 self.buffer = self.buffer[-self.max_buffer_length:]
-            
+
             # Verificar si hay algún atajo en el buffer
             for atajo, reemplazo in self.atajos.items():
-                if self.buffer.endswith(atajo):  # El atajo sin necesidad de espacio
-                    # Procesar variables dinámicas
+                if self.buffer.endswith(atajo):
                     texto_procesado = procesar_variables(reemplazo)
-                    
-                    # Actualizar estado
                     self.estado_var.set(f"Activado: {atajo}")
                     self.root.update_idletasks()
 
                     try:
-                        # Desactivar temporalmente para evitar recursión
                         temp = self.activado.get()
                         self.activado.set(False)
-                        
-                        # Guardar el contenido original del portapapeles
                         self.clipboard_original = pyperclip.paste()
-                        
-                        # Copiar el texto de reemplazo al portapapeles
                         pyperclip.copy(texto_procesado)
-                        
-                        # Enviar backspace para eliminar solo el atajo
+
+                        # Simular backspace para borrar el atajo
+                        ctrl = keyboard.Controller()
                         for _ in range(len(atajo)):
-                            keyboard.send('backspace')
-                        
-                        # Pegar el reemplazo (instantáneo) - en Linux puede ser diferente
-                        if os.name == 'nt':  # Windows
-                            keyboard.send('ctrl+v')
-                        else:  # Linux/Mac
-                            keyboard.send('ctrl+v')  # La mayoría de aplicaciones Linux usan Ctrl+V
-                        
-                        # Pequeña pausa antes de restaurar el portapapeles
+                            ctrl.press(keyboard.Key.backspace)
+                            ctrl.release(keyboard.Key.backspace)
+                        # Simular Ctrl+V
+                        ctrl.press(keyboard.Key.ctrl)
+                        ctrl.press('v')
+                        ctrl.release('v')
+                        ctrl.release(keyboard.Key.ctrl)
+
                         time.sleep(0.05)
-                        
-                        # Restaurar el portapapeles original
                         pyperclip.copy(self.clipboard_original)
-                        
-                        # Reactivar la escucha
                         self.activado.set(temp)
                     except Exception as e:
                         print(f"Error al reemplazar: {e}")
                         self.activado.set(True)
-                        # Intentar restaurar el portapapeles
                         try:
                             pyperclip.copy(self.clipboard_original)
                         except:
                             pass
-                    
-                    # Reiniciar el buffer
+
                     self.buffer = ""
-                    
-                    # Actualizar estado
                     self.estado_var.set("Estado: Monitoreando")
                     break
-        
+
         except Exception as e:
             print(f"Error al procesar tecla: {e}")
 
@@ -482,12 +463,17 @@ class ExpansubiApp:
         try:
             self.detener_escucha()
             self.buffer = ""
-            
-            # Registrar solo un listener para todas las teclas
-            keyboard.on_press(self.procesar_tecla)
-            
-            self.estado_var.set("Estado: Monitoreando")
-            print("Escucha de teclado iniciada")
+
+            def on_press(key):
+                self.procesar_tecla(key)
+
+            self.listener = keyboard.Listener(on_press=on_press)
+            self.listener_thread = threading.Thread(target=self.listener.start)
+            self.listener_thread.daemon = True
+            self.listener_thread.start()
+
+            self.estado_var.set("Estado: Activo")
+            print("Escucha de teclado iniciada (pynput)")
         except Exception as e:
             print(f"Error al iniciar la escucha: {e}")
             self.estado_var.set(f"Error: {e}")

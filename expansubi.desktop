@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ExpanSubi
+Comment=Expansor de texto automático para Linux
+Exec=/home/reyesoft/rodro/expansubi/expansubi.sh
+Icon=utilities-terminal
+Terminal=false
+Categories=Utility;Productivity;
+StartupNotify=false
