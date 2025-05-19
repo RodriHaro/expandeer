@@ -6,6 +6,7 @@ from pynput import keyboard  # Sustituye 'import keyboard'
 import os
 import time
 import pyperclip  # Para manejar el portapapeles
+pyperclip.set_clipboard('xclip')
 from datetime import datetime  # Para variables de fecha/hora
 import pystray
 from PIL import Image
