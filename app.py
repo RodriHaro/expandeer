@@ -9,6 +9,9 @@ import pyperclip  # Para manejar el portapapeles
 from datetime import datetime  # Para variables de fecha/hora
 import winreg  # Para registro de Windows
 import sys
+from PIL import Image, ImageTk  # Para el icono del tray
+import pystray  # Para el tray icon
+import io  # Para manejar la conversión de iconos
 
 # Archivo JSON para guardar atajos
 FILE_NAME = "atajos.json"
@@ -47,10 +50,10 @@ def configurar_inicio_windows(habilitar=True):
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
         
         if habilitar:
-            winreg.SetValueEx(key, "ExpanSubi", 0, winreg.REG_SZ, f'pythonw "{app_path}"')
+            winreg.SetValueEx(key, "Expandeer", 0, winreg.REG_SZ, f'pythonw "{app_path}"')
         else:
             try:
-                winreg.DeleteValue(key, "ExpanSubi")
+                winreg.DeleteValue(key, "Expandeer")
             except:
                 pass
                 
@@ -95,12 +98,18 @@ def procesar_variables(texto):
     return texto
 
 # Clase principal de la app
-class ExpansubiApp:
+class ExpandeerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("ExpanSubi")
+        self.root.title("Expandeer")
         self.atajos = cargar_atajos()
         self.config = cargar_config()
+        
+        # Asegurar que existe la config de minimizar al tray
+        if "minimizar_al_tray" not in self.config:
+            self.config["minimizar_al_tray"] = True
+            guardar_config(self.config)
+        
         self.buffer = ""
         self.max_buffer_length = 30  # Longitud máxima del buffer
         self.clipboard_original = ""  # Para guardar el contenido original del portapapeles
@@ -156,7 +165,7 @@ class ExpansubiApp:
         tk.Button(imp_exp_frame, text="Exportar", command=self.exportar_atajos, **button_style).pack(side=tk.LEFT, padx=5)
         
         # Estado de la aplicación
-        self.estado_var = tk.StringVar(value="Estado: Monitoreando")
+        self.estado_var = tk.StringVar(value="Estado: Activo")
         self.estado_label = tk.Label(main_frame, textvariable=self.estado_var, 
                                    font=("Helvetica", 10), bg="#f5f5f5", fg="#555555")
         self.estado_label.pack(pady=10)
@@ -168,15 +177,98 @@ class ExpansubiApp:
                                   bg="#f5f5f5", activebackground="#f5f5f5")
         self.check.pack(pady=5)
         
-        # Etiqueta de ayuda
-        ayuda_text = "Variables disponibles: {{date}}, {{time}}, {{datetime}}, {{year}}, {{month}}, {{day}}"
-        tk.Label(main_frame, text=ayuda_text, font=("Helvetica", 8), bg="#f5f5f5", fg="#777777").pack(pady=5)
+        # Inicializar el icono de la bandeja del sistema
+        self.setup_tray_icon()
 
         self.actualizar_lista()
         self.iniciar_escucha()
         
-        # Asegurar que los atajos se desactiven cuando se cierre la app
+        # Configurar qué ocurre al minimizar o cerrar la ventana
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.root.bind("<Unmap>", lambda e: self.minimize_to_tray() if self.root.state() == 'iconic' else None)
+
+    def setup_tray_icon(self):
+        # Crear un icono predeterminado si no existe un icono personalizado
+        try:
+            # Intentar cargar el icono personalizado
+            icon_image = Image.open("icon.ico")
+        except:
+            # Crear un icono básico (16x16 píxeles, azul)
+            icon_image = Image.new('RGB', (16, 16), color = (74, 134, 232))
+        
+        # Crear el menú del tray icon
+        menu = (
+            pystray.MenuItem('Mostrar Expandeer', self.show_window),
+            pystray.MenuItem('Activar/Desactivar', self.toggle_activado_tray),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem('Salir', self.quit_app)
+        )
+        
+        # Crear el icono de la bandeja
+        self.tray_icon = pystray.Icon("expandeer_tray", icon_image, "Expandeer", menu)
+        
+        # Configurar acción al hacer clic en el icono
+        self.tray_icon.on_click = self.on_tray_click
+        
+        # Iniciar el tray icon en un thread separado
+        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+    
+    def on_tray_click(self, icon, button):
+        # Solo responder al botón izquierdo
+        if str(button) == "Button.left":
+            self.show_window()
+    
+    def toggle_activado_tray(self, icon=None, item=None):
+        # Cambiar el estado de activación
+        self.activado.set(not self.activado.get())
+        # Actualizar la UI
+        self.toggle_activado()
+        
+        # Mostrar notificación del nuevo estado
+        if self.config.get("mostrar_notificaciones", True):
+            estado = "activado" if self.activado.get() else "desactivado"
+            self.tray_icon.notify(
+                f"Expandeer ha sido {estado}",
+                f"Expansión de texto {estado}"
+            )
+    
+    def show_window(self, icon=None, item=None):
+        self.root.deiconify()
+        self.root.focus_force()
+    
+    def minimize_to_tray(self):
+        # Ocultar la ventana principal
+        self.root.withdraw()
+        
+        # Mostrar notificación solo la primera vez
+        if hasattr(self, 'first_minimize') and self.first_minimize:
+            return
+            
+        # Mostrar notificación de que la aplicación sigue ejecutándose
+        if self.config.get("mostrar_notificaciones", True):
+            # Crear tooltip sobre el icono
+            if self.tray_icon:
+                self.tray_icon.notify(
+                    "Expandeer sigue ejecutándose en segundo plano.\nHaz clic en el icono para mostrar la ventana.",
+                    "Expandeer minimizado"
+                )
+        
+        # Marcar que ya se ha minimizado una vez
+        self.first_minimize = True
+
+    def quit_app(self, icon=None, item=None):
+        if self.tray_icon:
+            self.tray_icon.stop()
+        self.detener_escucha()
+        self.root.destroy()
+
+    def on_closing(self):
+        # Si está habilitada la opción de minimizar al tray, lo hacemos
+        if self.config.get("minimizar_al_tray", True):
+            self.minimize_to_tray()
+        else:
+            # Si no, cerramos la aplicación
+            self.quit_app()
 
     def crear_menu(self):
         menu_bar = tk.Menu(self.root)
@@ -186,7 +278,7 @@ class ExpansubiApp:
         file_menu.add_command(label="Importar atajos", command=self.importar_atajos)
         file_menu.add_command(label="Exportar atajos", command=self.exportar_atajos)
         file_menu.add_separator()
-        file_menu.add_command(label="Salir", command=self.on_closing)
+        file_menu.add_command(label="Salir", command=self.quit_app)
         menu_bar.add_cascade(label="Archivo", menu=file_menu)
         
         # Menú Configuración
@@ -202,6 +294,12 @@ class ExpansubiApp:
         self.mostrar_notif_var = tk.BooleanVar(value=self.config.get("mostrar_notificaciones", True))
         config_menu.add_checkbutton(label="Mostrar notificaciones", 
                                   variable=self.mostrar_notif_var,
+                                  command=self.guardar_configuracion)
+        
+        # Variable para minimizar al tray
+        self.minimizar_tray_var = tk.BooleanVar(value=self.config.get("minimizar_al_tray", True))
+        config_menu.add_checkbutton(label="Minimizar a la bandeja del sistema", 
+                                  variable=self.minimizar_tray_var,
                                   command=self.guardar_configuracion)
         
         menu_bar.add_cascade(label="Configuración", menu=config_menu)
@@ -226,13 +324,13 @@ class ExpansubiApp:
     
     def guardar_configuracion(self):
         self.config["mostrar_notificaciones"] = self.mostrar_notif_var.get()
+        self.config["minimizar_al_tray"] = self.minimizar_tray_var.get()
         guardar_config(self.config)
     
     def mostrar_acerca_de(self):
-        messagebox.showinfo("Acerca de ExpanSubi", 
-                          "ExpanSubi v1.0\n\n" +
-                          "Un expansor de texto creado para gestionar reembolsos\n" +
-                          "Desarrollado con Python\n\n" +
+        messagebox.showinfo("Acerca de Expandeer", 
+                          "Expandeer v1.0\n\n" +
+                          "Desarrollado por RH\n" +
                           "© 2025 - Todos los derechos reservados")
     
     def importar_atajos(self):
@@ -304,15 +402,11 @@ class ExpansubiApp:
     def toggle_activado(self):
         if self.activado.get():
             self.iniciar_escucha()
-            self.estado_var.set("Estado: Monitoreando")
+            self.estado_var.set("Estado: Activo")
         else:
             self.detener_escucha()
             self.estado_var.set("Estado: Detenido")
 
-    def on_closing(self):
-        self.detener_escucha()
-        self.root.destroy()
-        
     def actualizar_lista(self):
         self.listbox.delete(0, END)
         for atajo, texto in self.atajos.items():
@@ -498,7 +592,7 @@ class ExpansubiApp:
                     self.buffer = ""
                     
                     # Actualizar estado
-                    self.estado_var.set("Estado: Monitoreando")
+                    self.estado_var.set("Estado: Activo")
                     break
         
         except Exception as e:
@@ -512,7 +606,7 @@ class ExpansubiApp:
             # Registrar solo un listener para todas las teclas
             keyboard.on_press(self.procesar_tecla)
             
-            self.estado_var.set("Estado: Monitoreando")
+            self.estado_var.set("Estado: Activo")
             print("Escucha de teclado iniciada")
         except Exception as e:
             print(f"Error al iniciar la escucha: {e}")
@@ -536,5 +630,5 @@ if __name__ == "__main__":
     except:
         pass
         
-    app = ExpansubiApp(root)
+    app = ExpandeerApp(root)
     root.mainloop()

@@ -1,4 +1,5 @@
 {
     "iniciar_con_windows": false,
-    "mostrar_notificaciones": true
+    "mostrar_notificaciones": true,
+    "minimizar_al_tray": true
 }
