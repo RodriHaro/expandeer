@@ -11,5 +11,4 @@ if [ -f "$DIR/venv/bin/activate" ]; then
 fi
 
 # Run the main app
-python3 linux_app.py &
-disown
+python3 linux_app.py
