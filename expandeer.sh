@@ -1,14 +1,15 @@
 #!/bin/bash
-# Script para lanzar ExpanSubi en Linux
+# Launcher for Expandeer
 
-# Directorio del script
+# Script directory
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 
-# Activar entorno virtual si existe
+# Activate virtual environment if exists
 if [ -f "$DIR/venv/bin/activate" ]; then
     source "$DIR/venv/bin/activate"
 fi
 
-# Ejecutar la app principal
-python3 linux_app.py
+# Run the main app
+python3 linux_app.py &
+disown

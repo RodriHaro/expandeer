@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Expandeer
+Comment=Text expander for Linux
+Exec=/home/reyesoft/rodro/expansubi/expandeer.sh
+Icon=expandeer
+Terminal=false
+Categories=Utility;TextEditor;
+StartupNotify=false

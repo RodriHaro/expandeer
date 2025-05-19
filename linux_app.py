@@ -7,7 +7,8 @@ import os
 import time
 import pyperclip  # Para manejar el portapapeles
 from datetime import datetime  # Para variables de fecha/hora
-import sys
+import pystray
+from PIL import Image
 
 # Archivo JSON para guardar atajos
 FILE_NAME = "atajos.json"
@@ -36,13 +37,6 @@ def cargar_config():
 def guardar_config(config):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=4, ensure_ascii=False)
-
-# Configurar inicio con el sistema (Linux)
-def configurar_inicio_sistema(habilitar=True):
-    # Esta es una versión simplificada para Linux
-    # En un sistema Linux real, se debería crear un archivo .desktop en ~/.config/autostart/
-    print("Nota: La función de inicio automático no está implementada para Linux")
-    return False
 
 # Cargar atajos desde JSON
 def cargar_atajos():
@@ -79,10 +73,10 @@ def procesar_variables(texto):
     return texto
 
 # Clase principal de la app
-class ExpansubiApp:
+class ExpandeerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("ExpanSubi (Linux)")
+        self.root.title("Expandeer (Linux)")
         self.atajos = cargar_atajos()
         self.config = cargar_config()
         self.buffer = ""
@@ -90,6 +84,11 @@ class ExpansubiApp:
         self.clipboard_original = ""  # Para guardar el contenido original del portapapeles
         self.listener = None  # Para pynput
         self.listener_thread = None
+        
+        # Tray icon
+        self.tray_icon = None
+        self.tray_image = None
+        self.is_tray = False
         
         # Configurar estilo moderno
         self.configurar_estilo()
@@ -154,19 +153,13 @@ class ExpansubiApp:
                                   bg="#f5f5f5", activebackground="#f5f5f5")
         self.check.pack(pady=5)
         
-        # Etiqueta de ayuda
-        ayuda_text = "Variables disponibles: {{date}}, {{time}}, {{datetime}}, {{year}}, {{month}}, {{day}}"
-        tk.Label(main_frame, text=ayuda_text, font=("Helvetica", 8), bg="#f5f5f5", fg="#777777").pack(pady=5)
-        
-        # Etiqueta de versión Linux
-        linux_text = "Versión Linux - Algunas funciones pueden estar limitadas"
-        tk.Label(main_frame, text=linux_text, font=("Helvetica", 8), bg="#f5f5f5", fg="#ff6600").pack(pady=5)
-
         self.actualizar_lista()
         self.iniciar_escucha()
         
         # Asegurar que los atajos se desactiven cuando se cierre la app
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.root.bind("<Unmap>", self.on_minimize)
+        self.root.bind("<FocusOut>", self.on_minimize)
 
     def crear_menu(self):
         menu_bar = tk.Menu(self.root)
@@ -202,10 +195,9 @@ class ExpansubiApp:
         guardar_config(self.config)
     
     def mostrar_acerca_de(self):
-        messagebox.showinfo("Acerca de ExpanSubi", 
-                          "ExpanSubi v1.0 (Linux Edition)\n\n" +
-                          "Un expansor de texto creado para gestionar reembolsos\n" +
-                          "Desarrollado con Python\n\n" +
+        messagebox.showinfo("Acerca de Expandeer", 
+                          "Expandeer v1.0 (Linux Edition)\n\n" +
+                          "Desarrollado por RH\n" +
                           "© 2025 - Todos los derechos reservados")
     
     def importar_atajos(self):
@@ -277,15 +269,57 @@ class ExpansubiApp:
     def toggle_activado(self):
         if self.activado.get():
             self.iniciar_escucha()
-            self.estado_var.set("Estado: Monitoreando")
+            self.estado_var.set("Estado: Activo")
         else:
             self.detener_escucha()
             self.estado_var.set("Estado: Detenido")
 
-    def on_closing(self):
+    def on_closing(self, *args):
         self.detener_escucha()
+        if self.tray_icon:
+            self.tray_icon.stop()
         self.root.destroy()
         
+    def on_minimize(self, event=None):
+        # Detect minimize or hide
+        if self.root.state() == 'iconic' or not self.root.winfo_viewable():
+            if not self.is_tray:
+                self.show_tray_icon()
+                self.root.withdraw()
+
+    def show_tray_icon(self):
+        if not self.tray_image:
+            try:
+                self.tray_image = Image.open("expandeer.png")
+            except Exception:
+                self.tray_image = Image.new('RGB', (64, 64), color='gray')
+        menu = pystray.Menu(
+            pystray.MenuItem('Show', self.on_tray_show),
+            pystray.MenuItem('Activate', self.on_tray_activate, checked=lambda item: self.activado.get()),
+            pystray.MenuItem('Quit', self.on_closing)
+        )
+        self.tray_icon = pystray.Icon("expandeer", self.tray_image, "Expandeer", menu)
+        self.is_tray = True
+        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+    def on_tray_show(self, icon, item):
+        self.root.after(0, self.restore_window)
+
+    def on_tray_activate(self, icon, item):
+        self.activado.set(not self.activado.get())
+        if self.activado.get():
+            self.iniciar_escucha()
+        else:
+            self.detener_escucha()
+
+    def restore_window(self):
+        if self.tray_icon:
+            self.tray_icon.stop()
+            self.tray_icon = None
+        self.is_tray = False
+        self.root.deiconify()
+        self.root.state('normal')
+
     def actualizar_lista(self):
         self.listbox.delete(0, END)
         for atajo, texto in self.atajos.items():
@@ -491,5 +525,5 @@ if __name__ == "__main__":
     root.geometry("650x550")  # Tamaño inicial de la ventana un poco más grande
     
     # No intentar cargar el ícono en Linux
-    app = ExpansubiApp(root)
+    app = ExpandeerApp(root)
     root.mainloop()
