@@ -17,7 +17,7 @@ sudo cp /opt/expandeer/expandeer.desktop /usr/share/applications/expandeer.deskt
 sudo sed -i 's|Exec=.*|Exec=/usr/local/bin/expandeer|' /usr/share/applications/expandeer.desktop
 sudo sed -i 's|Icon=.*|Icon=/opt/expandeer/expandeer.png|' /usr/share/applications/expandeer.desktop
 
-# 5. Crear symlink para ejecutar desde terminal
+# 5. Crear symlink para ejecutar desde terminal (siempre apuntando al script real)
 sudo ln -sf /opt/expandeer/expandeer.sh /usr/local/bin/expandeer
 sudo chmod +x /opt/expandeer/expandeer.sh
 
